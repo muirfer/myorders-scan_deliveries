@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dollies App V3</title>
+    <!-- Include Tailwind CSS for a clean, modern design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        
+        /* New highlight animation for records */
+        .highlight-record {
+            animation: highlight-fade-blue 1s ease-in-out forwards;
+        }
+        .highlight-new-record {
+            animation: highlight-fade-orange 1s ease-in-out forwards;
+        }
+        
+        /* Keyframes for record highlight */
+        @keyframes highlight-fade-blue {
+            0% { background-color: transparent; box-shadow: none; }
+            50% { background-color: rgba(228, 241, 255, 0.8); box-shadow: 0 0 10px 5px rgba(59, 130, 246, 0.5); }
+            100% { background-color: transparent; box-shadow: none; }
+        }
+        @keyframes highlight-fade-orange {
+            0% { background-color: transparent; box-shadow: none; }
+            50% { background-color: rgba(255, 237, 213, 0.8); box-shadow: 0 0 10px 5px rgba(249, 115, 22, 0.5); }
+            100% { background-color: transparent; box-shadow: none; }
+        }
+
+        /* New animation for the count number */
+        .highlight-count-scale {
+            animation: scale-up 1s ease-in-out forwards;
+        }
+
+        /* Keyframes for the count scale animation */
+        @keyframes scale-up {
+            0% { transform: scale(1); }
+            50% { transform: scale(3); } /* Changed to scale(3) as requested */
+            100% { transform: scale(1); }
+        }
+
+        /* Popover styles */
+        #manual-add-popover {
+            position: absolute;
+            top: 60px; /* Position below the header */
+            left: 1rem;
+            right: 1rem;
+            z-index: 50;
+            display: none;
+        }
+        #manual-add-popover::before {
+            content: '';
+            position: absolute;
+            top: -8px; /* Position outside the popover box */
+            right: 1rem; /* Aligned with the button */
+            width: 0;
+            height: 0;
+            border-left: 8px solid transparent;
+            border-right: 8px solid transparent;
+            border-bottom: 8px solid white;
+        }
+
+        /* Screen navigation animations */
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.3s ease-out;
+            transform: translateX(100%);
+        }
+        .screen.active {
+            transform: translateX(0);
+        }
+        .screen.hidden-left {
+            transform: translateX(-100%);
+        }
+        
+        /* Fixed header and notification container */
+        .fixed-header-container {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        /* Notification box styles */
+        #notification-box {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background-color: #E2E8F0; /* Subtle grey background */
+            border-bottom: 1px solid #CBD5E1;
+        }
+
+        .scrollable-content {
+            flex-grow: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch; /* smooth scrolling on iOS */
+        }
+
+        /* Custom scrollbar for WebKit browsers (Chrome, Safari, etc.) */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #e5e7eb;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #9ca3af;
+            border-radius: 10px;
+            border: 2px solid #e5e7eb;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: #6b7280;
+        }
+        
+        /* New overlay styles for the greyed-out background */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4); /* Semi-transparent grey */
+            backdrop-filter: blur(2px); /* Optional blur effect */
+            z-index: 40;
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <!-- Main app container simulating a mobile screen -->
+    <div id="app-container" class="relative w-full max-w-sm h-[700px] bg-white rounded-3xl shadow-2xl overflow-hidden">
+        
+        <!-- Overlay to grey out the background -->
+        <div id="overlay" class="overlay"></div>
+
+        <!-- Popover for manual add - MOVED TO BE A DIRECT CHILD OF APP CONTAINER -->
+        <div id="manual-add-popover" class="bg-white rounded-xl shadow-lg left-6 right-6 z-50 flex flex-col">
+            <!-- Popover content -->
+            <div class="p-4 pb-0">
+                <div class="space-y-4">
+                    <div>
+                        <label for="support-number" class="block text-sm font-medium text-gray-700">Support Number</label>
+                        <input type="text" id="support-number-input" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-3 py-2" placeholder="Enter up to 18 digits" maxlength="18" pattern="\d*">
+                        <p id="digit-counter" class="text-xs text-gray-500 text-right mt-1">0 / 18</p>
+                    </div>
+                </div>
+            </div>
+            <!-- Add button -->
+            <div class="p-4">
+                <button id="add-button" class="w-full bg-green-600 text-white font-semibold py-2 px-4 rounded-md shadow-sm opacity-50 cursor-not-allowed" disabled onclick="addManually()">
+                    Add
+                </button>
+            </div>
+        </div>
+
+        <!-- Screen 1: Main list screen -->
+        <div id="screen-1" class="screen flex flex-col active">
+            <!-- Fixed header and notification container -->
+            <div class="fixed-header-container">
+                <!-- App header -->
+                <header class="bg-white pt-4 pb-4 px-4 flex items-center justify-between border-b border-gray-200">
+                    <div>
+                        <h1 class="text-xl font-bold text-gray-800 cursor-pointer" onclick="handleScanEvent()">Deliveries status</h1>
+                        <p id="today-date" class="text-sm text-gray-500 mt-1"></p>
+                    </div>
+                    <button id="add-manually-button" class="bg-gray-300 text-gray-800 font-medium py-1 px-3 rounded-full shadow-md hover:bg-gray-400 transition-colors flex items-center text-sm" onclick="showManualAddPopover(event)">
+                        <!-- Plus icon SVG -->
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+                        </svg>
+                        Add Manually
+                    </button>
+                </header>
+
+                <!-- Notification Box -->
+                <div id="notification-box" class="px-4 py-2 flex flex-col items-start justify-center text-sm">
+                    <p id="notification-number" class="font-semibold text-gray-700">-</p>
+                    <p id="notification-message" class="text-xs text-gray-500 mt-0.5">Ready to scan or input a new delivery</p>
+                </div>
+            </div>
+
+            <!-- List container -->
+            <div class="scrollable-content mt-4 px-4 pr-1 pb-4">
+                <ul id="delivery-list" class="space-y-4">
+                    <!-- List items will be generated here with JavaScript -->
+                </ul>
+            </div>
+        </div>
+
+        <!-- Screen 2: Dolly details screen -->
+        <div id="screen-2" class="screen flex flex-col">
+            <!-- Fixed header and details section -->
+            <div class="fixed-header-container px-4">
+                <!-- Back button -->
+                <header class="py-4 flex items-center justify-between">
+                    <h1 id="back-button" class="text-xl font-bold text-gray-800 cursor-pointer" onclick="goBack()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 inline-block mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                        </svg>                        
+                    </h1>
+                    <!-- Buttons container -->
+                    <div class="flex items-center space-x-2">
+                        <!-- Add to Stock button -->
+                        <button id="add-to-stock-btn" class="hidden bg-gray-300 text-gray-800 font-medium py-1 px-3 rounded-full shadow-md hover:bg-gray-400 transition-colors flex items-center text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+                            </svg>
+                            Add to Stock
+                        </button>
+                        <!-- Create SST button -->
+                        <button id="create-sst-btn" class="hidden bg-gray-300 text-gray-800 font-medium py-1 px-3 rounded-full shadow-md hover:bg-gray-400 transition-colors flex items-center text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+                            </svg>
+                            Create SST
+                        </button>
+                    </div>
+                </header>
+
+                <!-- Dolly details section (fixed) -->
+                <div id="dolly-info-fixed" class="py-4 -mt-2">
+                    <!-- Dolly details and KPIs will be rendered here by JS -->
+                </div>
+            </div>
+            
+            <!-- Scrollable content below the fixed header -->
+            <div id="dolly-details-scrollable" class="scrollable-content p-4">
+                <!-- The scrollable list of support numbers will be rendered here by JS -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Test data for delivery notes, structured for the new UI
+        const deliveryNotes = [
+            {
+                "id": 1,
+                "delivery_note": "1901515212",
+                "date_time": "10/08/2025 23:50",
+                "data_warehouse": "Dist. Center 01",
+                "received_count": 8,
+                "total_count": 8,
+                "status": "Treated",
+                "not_scanned": 0,
+                "not_delivered": 0,
+                "dolly_info": {
+                    "name": "Classic Dolly",
+                    "description": "The original model, ideal for transporting small to medium boxes in home and office environments. Its robust and simple design makes it an indispensable tool for daily use.",
+                    "weight_capacity_kg": 150,
+                    "material": "Steel",
+                    "wheels": "20cm solid rubber wheels",
+                    "dimensions_cm": { "height": 110, "width": 45 },
+                    "image_url": "https://placehold.co/400x300/F0F0F0/000000?text=Classic+Dolly"
+                }
+            },
+            {
+                "id": 2,
+                "delivery_note": "5955959259",
+                "date_time": "10/08/2025 19:37",
+                "data_warehouse": "Dist. Center 02",
+                "received_count": 5,
+                "total_count": 12, // Updated total count for this record
+                "status": "Not treated",
+                "not_scanned": 7, // Updated not scanned count
+                "not_delivered": 0,
+                "dolly_info": {
+                    "name": "Folding Dolly",
+                    "description": "Compact and easy to store, this dolly is perfect for home use, travel, and shopping. Its folding capability makes it extremely practical and portable.",
+                    "weight_capacity_kg": 90,
+                    "material": "Aluminum",
+                    "wheels": "10cm plastic wheels",
+                    "dimensions_cm": { "height": 95, "width": 38 },
+                    "image_url": "https://placehold.co/400x300/F0F0F0/000000?text=Folding+Dolly"
+                }
+            },
+            {
+                "id": 3,
+                "delivery_note": "1559141952",
+                "date_time": "10/08/2025 13:15",
+                "data_warehouse": "Dist. Center 03",
+                "received_count": 3,
+                "total_count": 5,
+                "status": ["2 missing", "Not treated"],
+                "not_scanned": 1,
+                "not_delivered": 1,
+                "dolly_info": {
+                    "name": "Industrial Dolly",
+                    "description": "Designed for heavy loads in warehouses, factories, and construction sites. Its reinforced steel frame and large pneumatic wheels allow it to withstand the most demanding jobs.",
+                    "weight_capacity_kg": 300,
+                    "material": "Reinforced steel",
+                    "wheels": "25cm pneumatic wheels",
+                    "dimensions_cm": { "height": 130, "width": 60 },
+                    "image_url": "https://placehold.co/400x300/F0F0F0/000000?text=Industrial+Dolly"
+                }
+            },
+            {
+                "id": 4,
+                "delivery_note": "1551159152",
+                "date_time": "10/08/2025 19:16",
+                "data_warehouse": "Dist. Center 32",
+                "received_count": 7,
+                "total_count": 11,
+                "status": ["1 missing", "Not treated"],
+                "not_scanned": 2,
+                "not_delivered": 2,
+                "dolly_info": {
+                    "name": "Rolling Platform",
+                    "description": "A versatile, flat platform for moving heavy or bulky items. The durable plywood deck provides a stable base.",
+                    "weight_capacity_kg": 200,
+                    "material": "Plywood",
+                    "wheels": "15cm swivel casters",
+                    "dimensions_cm": { "height": 15, "width": 75 },
+                    "image_url": "https://placehold.co/400x300/F0F0F0/000000?text=Plywood+Dolly"
+                }
+            },
+            {
+                "id": 5,
+                "delivery_note": "293459130",
+                "date_time": "10/07/2025 19:16",
+                "data_warehouse": "Dist. Center 08",
+                "received_count": 3,
+                "total_count": 6,
+                "status": ["1 missing", "Not treated"],
+                "not_scanned": 1,
+                "not_delivered": 2,
+                "dolly_info": {
+                    "name": "Rolling Platform",
+                    "description": "A versatile, flat platform for moving heavy or bulky items. The durable plywood deck provides a stable base.",
+                    "weight_capacity_kg": 200,
+                    "material": "Plywood",
+                    "wheels": "15cm swivel casters",
+                    "dimensions_cm": { "height": 15, "width": 75 },
+                    "image_url": "https://placehold.co/400x300/F0F0F0/000000?text=Plywood+Dolly"
+                }
+            },
+            {
+                "id": 6,
+                "delivery_note": "1901514877",
+                "date_time": "10/07/2025 23:50",
+                "data_warehouse": "Dist. Center 01",
+                "received_count": 12,
+                "total_count": 12,
+                "status": "Treated",
+                "not_scanned": 0,
+                "not_delivered": 0,
+                "dolly_info": {
+                    "name": "Classic Dolly",
+                    "description": "The original model, ideal for transporting small to medium boxes in home and office environments. Its robust and simple design makes it an indispensable tool for daily use.",
+                    "weight_capacity_kg": 150,
+                    "material": "Steel",
+                    "wheels": "20cm solid rubber wheels",
+                    "dimensions_cm": { "height": 110, "width": 45 },
+                    "image_url": "https://placehold.co/400x300/F0F0F0/000000?text=Classic+Dolly"
+                }
+            },
+            {
+                "id": 7,
+                "delivery_note": "1559145574",
+                "date_time": "10/07/2025 13:15",
+                "data_warehouse": "Dist. Center 32",
+                "received_count": 2,
+                "total_count": 4,
+                "status": ["2 missing", "Not treated"],
+                "not_scanned": 1,
+                "not_delivered": 1,
+                "dolly_info": {
+                    "name": "Industrial Dolly",
+                    "description": "Designed for heavy loads in warehouses, factories, and construction sites. Its reinforced steel frame and large pneumatic wheels allow it to withstand the most demanding jobs.",
+                    "weight_capacity_kg": 300,
+                    "material": "Reinforced steel",
+                    "wheels": "25cm pneumatic wheels",
+                    "dimensions_cm": { "height": 130, "width": 60 },
+                    "image_url": "https://placehold.co/400x300/F0F0F0/000000?text=Industrial+Dolly"
+                }
+            },
+            {
+                "id": 8,
+                "delivery_note": "5955951147",
+                "date_time": "10/07/2025 19:37",
+                "data_warehouse": "Dist. Center 09",
+                "received_count": 1,
+                "total_count": 9,
+                "status": "Not treated",
+                "not_scanned": 7,
+                "not_delivered": 0,
+                "dolly_info": {
+                    "name": "Folding Dolly",
+                    "description": "Compact and easy to store, this dolly is perfect for home use, travel, and shopping. Its folding capability makes it extremely practical and portable.",
+                    "weight_capacity_kg": 90,
+                    "material": "Aluminum",
+                    "wheels": "10cm plastic wheels",
+                    "dimensions_cm": { "height": 95, "width": 38 },
+                    "image_url": "https://placehold.co/400x300/F0F0F0/000000?text=Folding+Dolly"
+                }
+            }
+        ];
+
+        let currentScreen = 1;
+        let scanEventCounter = 0;
+        let manualAddCounter = 0; // New counter for manual adds
+        // Object to store pre-generated support numbers for each delivery note
+        const supportNumbersByNote = {};
+        
+        // Function to format the date to dd/MM/yyyy
+        function formatDate(date) {
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+        
+        // Function to generate a random 18-digit number
+        function generateRandom18DigitNumber() {
+            let result = '';
+            for (let i = 0; i < 18; i++) {
+                result += Math.floor(Math.random() * 10);
+            }
+            return result;
+        }
+
+        // Function to shuffle an array randomly
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // Function to show a screen and hide others with a swipe effect
+        function showScreen(screenNumber) {
+            const screens = document.querySelectorAll('.screen');
+            screens.forEach(screen => {
+                if (parseInt(screen.id.replace('screen-', '')) === screenNumber) {
+                    screen.classList.remove('hidden-left');
+                    screen.classList.add('active');
+                } else {
+                    screen.classList.remove('active');
+                    screen.classList.add('hidden-left');
+                }
+            });
+            currentScreen = screenNumber;
+        }
+
+        // Function to go back to the previous screen
+        function goBack() {
+            if (currentScreen === 2) {
+                showScreen(1);
+            }
+        }
+        
+        // Function to update the notification box
+        function updateNotification(number, message) {
+            const numberEl = document.getElementById('notification-number');
+            const messageEl = document.getElementById('notification-message');
+            
+            // Format number with spaces every 4 digits
+            const formattedNumber = number.replace(/(\d{4})/g, '$1 ').trim();
+            
+            numberEl.textContent = formattedNumber;
+            messageEl.textContent = message;
+        }
+
+        // Function to render the list of delivery notes
+        function renderDeliveryList() {
+            console.log('Rendering delivery list...');
+            const listContainer = document.getElementById('delivery-list');
+            listContainer.innerHTML = ''; // Clear the existing list
+
+            deliveryNotes.forEach(note => {
+                let statusHtml = '';
+                let verticalLineColor = '';
+                let deliveryNoteHtml = note.delivery_note;
+
+                // Determine the vertical line color based on the most severe status
+                if (Array.isArray(note.status) && note.status.some(s => s.includes('missing'))) {
+                    verticalLineColor = 'bg-red-600';
+                } else if (note.delivery_note === "No order") {
+                    verticalLineColor = 'bg-orange-600';
+                } else if (typeof note.status === 'string' && note.status === 'Treated') {
+                    verticalLineColor = 'bg-green-600';
+                } else {
+                    verticalLineColor = 'bg-gray-300';
+                }
+
+                // Generate the status HTML with individual colors and alignment
+                if (note.status === "Treated") {
+                    statusHtml = `<p class="text-xs font-medium text-green-600">Treated</p>`;
+                } else if (note.status === "Not treated") {
+                    statusHtml = `<p class="text-xs font-medium text-gray-500">Not treated</p>`;
+                } else if (Array.isArray(note.status)) {
+                    if (note.status.includes('Not treated')) {
+                        statusHtml = `<p class="text-xs font-medium text-gray-500">Not treated</p>`;
+                    }
+                }
+                
+                const li = document.createElement('li');
+                li.id = `note-${note.id}`;
+                li.innerHTML = `
+                    <div onclick="showDollyDetails(${note.id})" class="flex bg-white rounded-xl shadow-md cursor-pointer hover:bg-gray-50 transition-colors">
+                        <!-- Vertical status line -->
+                        <div class="w-2 rounded-l-xl ${verticalLineColor}"></div>
+                        
+                        <!-- Main content with rows for alignment -->
+                        <div class="p-4 flex flex-col flex-grow">
+                            <!-- Row 1: Delivery Note & Count -->
+                            <div class="flex justify-between items-center">
+                                <p class="font-bold text-lg text-gray-900">${deliveryNoteHtml}</p>
+                                <div class="flex items-baseline space-x-1">
+                                    <span id="count-${note.id}" class="text-sm font-bold text-gray-700 transition-transform duration-200">${note.received_count}</span>
+                                    <span class="text-sm text-gray-400">/</span>
+                                    <span class="text-lg font-bold text-gray-900">${note.total_count}</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Row 2: Date & Status 1 -->
+                            <div class="flex justify-between items-center mt-1">
+                                <p class="text-xs text-gray-500">${note.date_time}</p>
+                                ${statusHtml}
+                            </div>
+
+                            <!-- Row 3: Data Warehouse -->
+                            <div class="flex justify-between items-center mt-1">
+                                <p class="text-xs font-semibold text-gray-500">${note.data_warehouse}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                listContainer.appendChild(li);
+            });
+        }
+        
+        // Simulates a scan event by updating a record and showing a toast
+        function handleScanEvent() {
+            scanEventCounter++;
+
+            // Step 1: Update notification box FIRST
+            const randomSSCC = generateRandom18DigitNumber();
+            let notificationMessage;
+            let targetNote;
+
+            // Check for the 4th click (scanEventCounter will be 4)
+            if (scanEventCounter === 4) {
+                // Handle the specific "Support not found" case
+                updateNotification(randomSSCC, "Support not found");
+                return; // Exit the function after showing the toast
+            }
+            
+            if (scanEventCounter % 3 === 0) {
+                // Third, sixth, etc. scan: add a new record
+                notificationMessage = "Support identified for store but Delivery note not found";
+            } else if (scanEventCounter % 2 !== 0) {
+                // First, fifth, etc. scan: update last record
+                targetNote = deliveryNotes[deliveryNotes.length - 1];
+                notificationMessage = `Scanned. Delivery note: ${targetNote.delivery_note}`;
+            } else {
+                // Second, sixth, etc. scan: update second record
+                targetNote = deliveryNotes[1];
+                notificationMessage = `Scanned. Delivery note: ${targetNote.delivery_note}`;
+            }
+
+            updateNotification(randomSSCC, notificationMessage);
+
+
+            // Step 2: Proceed with the rest of the event logic
+            let newValue;
+            let highlightClass;
+            
+            if (scanEventCounter % 3 === 0) {
+                // Third, sixth, etc. scan: add a new record
+                const now = new Date();
+                const formattedDate = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                
+                const newNote = {
+                    "id": Date.now(),
+                    "delivery_note": "No order", // We still use "No order" here for internal logic
+                    "date_time": formattedDate,
+                    "data_warehouse": "Dist. Center 99",
+                    "received_count": 1,
+                    "total_count": 1,
+                    "status": "Not treated", // Corrected status for new records
+                    "not_scanned": null,
+                    "not_delivered": null,
+                    "dolly_info": null
+                };
+
+                deliveryNotes.unshift(newNote);
+                initializeSupportNumbers(newNote); // Generate and store support numbers for the new note
+                renderDeliveryList();
+
+                targetNote = newNote;
+                highlightClass = 'highlight-new-record';
+            } else if (scanEventCounter % 2 !== 0) {
+                // First, fifth, etc. scan: update last record
+                targetNote = deliveryNotes[deliveryNotes.length - 1];
+                newValue = 2;
+                highlightClass = 'highlight-record';
+            } else {
+                // Second, sixth, etc. scan: update second record
+                targetNote = deliveryNotes[1];
+                newValue = 6;
+                highlightClass = 'highlight-record';
+            }
+
+            if (!targetNote) return;
+
+            const targetRecordEl = document.getElementById(`note-${targetNote.id}`);
+            if (!targetRecordEl) return;
+            const recordDiv = targetRecordEl.querySelector('div');
+            const countSpan = document.getElementById(`count-${targetNote.id}`);
+
+            // 1. Scroll to the target record
+            targetRecordEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            // Wait for scroll to position correctly before animating
+            setTimeout(() => {
+                // 2. Highlight the record
+                if (recordDiv) {
+                    recordDiv.classList.add(highlightClass);
+                }
+
+                // If it's a new record, the count is already correct, so we just show the toast
+                if (scanEventCounter % 3 === 0) {
+                    setTimeout(() => {
+                        if (recordDiv) { recordDiv.classList.remove(highlightClass); }
+                    }, 1000); // Duration for highlight
+                    return;
+                }
+
+                // For existing records, animate the count update
+                setTimeout(() => {
+                    if (countSpan) {
+                        // 3. Animate number transition
+                        countSpan.classList.add('highlight-count-scale');
+
+                        setTimeout(() => {
+                            // Change the value
+                            targetNote.received_count = newValue;
+                            countSpan.textContent = targetNote.received_count;
+
+                            setTimeout(() => {
+                                countSpan.classList.remove('highlight-count-scale');
+                                renderDeliveryList();
+                                if (recordDiv) { recordDiv.classList.remove(highlightClass); }
+                            }, 500); // Duration for shrink
+                        }, 200); // Duration for enlarge
+                    }
+                }, 1000); // Duration for record highlight
+            }, 500); // Duration for scroll
+        }
+
+        // Function to show the details of a specific dolly
+        function showDollyDetails(dollyId) {
+            const deliveryNote = deliveryNotes.find(note => note.id === dollyId);
+            if (!deliveryNote) {
+                console.error('Delivery note not found.');
+                return;
+            }
+            
+            // Get references to the buttons
+            const addToStockBtn = document.getElementById('add-to-stock-btn');
+            const createSSTBtn = document.getElementById('create-sst-btn');
+
+            // Hide both buttons by default
+            addToStockBtn.classList.add('hidden');
+            createSSTBtn.classList.add('hidden');
+
+            // Check for 'Add to Stock' button visibility
+            if (deliveryNote.data_warehouse === "Dist. Center 150") {
+                addToStockBtn.classList.remove('hidden');
+            } else {
+                // Check for 'Create SST' button visibility
+                const supportNumbers = supportNumbersByNote[dollyId];
+                let shouldShowSST = false;
+                for (const item of supportNumbers) {
+                    if (item.status1 === "Not delivered" || (item.status1 === "Received" && item.status2 === "No support")) {
+                        shouldShowSST = true;
+                        break;
+                    }
+                }
+                if (shouldShowSST) {
+                    createSSTBtn.classList.remove('hidden');
+                }
+            }
+
+            // Reference the new fixed and scrollable containers
+            const fixedContainer = document.getElementById('dolly-info-fixed');
+            const scrollableContainer = document.getElementById('dolly-details-scrollable');
+            
+            fixedContainer.innerHTML = '';
+            scrollableContainer.innerHTML = '';
+
+            let verticalLineColor = '';
+            if (Array.isArray(deliveryNote.status) && deliveryNote.status.some(s => s.includes('missing'))) {
+                verticalLineColor = 'bg-red-600';
+            } else if (deliveryNote.delivery_note === "No order") {
+                verticalLineColor = 'bg-orange-600';
+            } else if (typeof deliveryNote.status === 'string' && deliveryNote.status === 'Treated') {
+                    verticalLineColor = 'bg-green-600';
+                } else {
+                    verticalLineColor = 'bg-gray-300';
+                }
+
+                let statusHtml = '';
+                if (deliveryNote.status === "Treated") {
+                    statusHtml = `<p class="text-xs font-medium text-green-600">Treated</p>`;
+                } else if (deliveryNote.status === "Not treated") {
+                    statusHtml = `<p class="text-xs font-medium text-gray-500">Not treated</p>`;
+                } else if (Array.isArray(deliveryNote.status)) {
+                    if (deliveryNote.status.includes('Not treated')) {
+                        statusHtml = `<p class="text-xs font-medium text-gray-500">Not treated</p>`;
+                    }
+                }
+            
+            // The content for the fixed header section
+            let detailsContentHtml = `
+                <div class="flex bg-[#f8f8ff] rounded-xl shadow-md">
+                    <!-- Vertical status line -->
+                    <div class="w-2 rounded-l-xl ${verticalLineColor}"></div>
+                    
+                    <!-- Main content with rows for alignment -->
+                    <div class="flex flex-col flex-grow">
+                        <!-- Row 1: Delivery Note & Total Count -->
+                        <div class="flex justify-between items-center p-4 pb-0">
+                            <p class="font-bold text-lg text-gray-900">${deliveryNote.delivery_note}</p>
+                            <div class="flex items-baseline space-x-1">
+                                <span class="text-lg font-bold text-gray-900">${deliveryNote.total_count}</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Row 2: Date & Status -->
+                        <div class="flex justify-between items-center mt-1 px-4">
+                            <p class="text-xs text-gray-500">${deliveryNote.date_time}</p>
+                            ${statusHtml}
+                        </div>
+                        
+                        <!-- Row 3: Data Warehouse -->
+                        <div class="flex justify-between items-center mt-1 px-4">
+                            <p class="text-xs font-semibold text-gray-500">${deliveryNote.data_warehouse}</p>
+                        </div>
+            `;
+            
+            if (deliveryNote.delivery_note === "No order") {
+                // Determine which warning to show based on the data warehouse
+                let warningText = "";
+                if (deliveryNote.data_warehouse === "Dist. Center 150") {
+                    warningText = "Not linked to the store";
+                } else if (deliveryNote.data_warehouse === "Dist. Center 99") {
+                    warningText = "Received, no support";
+                }
+
+                detailsContentHtml += `
+                    <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 rounded-md mt-2 p-2 flex items-center space-x-2 text-xs">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                          <path fill-rule="evenodd" d="M8.257 3.32a.75.75 0 011.486 0L14.73 13.5a.75.75 0 01-.663 1.15H5.933a.75.75 0 01-.663-1.15L8.257 3.32zM10 17a.75.75 0 100-1.5.75.75 0 000 1.5z" clip-rule="evenodd" />
+                      </svg>
+                      <p>${warningText}</p>
+                    </div>
+                `;
+            } else {
+                // Standard records with KPI indicators
+                detailsContentHtml += `
+                    <div class="w-[90%] mx-auto mt-4 mb-0">
+                        <hr class="border-dotted border-gray-400">
+                    </div>
+                    <div class="grid grid-cols-3 text-center mb-4 mt-1">
+                        <!-- Received Indicator -->
+                        <div class="flex flex-col items-center p-0 pt-2 mx-1">
+                            <p class="text-green-600 font-bold text-xl">${deliveryNote.received_count}</p>
+                            <p class="text-gray-500 text-xs">Received</p>
+                        </div>
+                        <!-- Not Delivered Indicator -->
+                        <div class="flex flex-col items-center p-0 pt-2 mx-1">
+                            <p class="text-red-600 font-bold text-xl">${deliveryNote.not_delivered}</p>
+                            <p class="text-gray-500 text-xs">Not delivered</p>
+                        </div>
+                        <!-- Not scanned Indicator -->
+                        <div class="flex flex-col items-center p-0 pt-2 mx-1">
+                            <p class="text-orange-500 font-bold text-xl">${deliveryNote.not_scanned}</p>
+                            <p class="text-gray-500 text-xs">Not scanned</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            detailsContentHtml += `
+                    </div>
+                </div>
+            `;
+            
+            // Render the fixed content
+            fixedContainer.innerHTML = detailsContentHtml;
+
+            // --- Dynamic list of support numbers ---
+            // Retrieve the pre-generated list of support numbers for this note
+            const supportNumbers = supportNumbersByNote[dollyId];
+
+            let supportNumbersHtml = '<ul class="space-y-3 pt-4">';
+            supportNumbers.forEach(item => {
+                supportNumbersHtml += `
+                    <li class="flex bg-white rounded-xl shadow-md">
+                        <div class="w-2 rounded-l-xl ${item.lineColor}"></div>
+                        <div class="p-3 flex flex-col flex-grow">
+                            <p class="font-bold text-md text-gray-900">${item.number}</p>
+                            <p class="text-xs text-gray-500">${item.subtitle}</p>
+                        </div>
+                        <div class="p-3 flex flex-col items-end justify-center text-right">
+                            <p class="font-bold text-sm ${item.status1Color}">${item.status1}</p>
+                            ${item.status2 ? `<p class="text-xs text-gray-500">${item.status2}</p>` : ''}
+                        </div>
+                    </li>
+                `;
+            });
+            supportNumbersHtml += '</ul>';
+
+            // Render the scrollable content
+            scrollableContainer.innerHTML = supportNumbersHtml;
+            
+            showScreen(2);
+        }
+
+        // --- New Manual Add Functions ---
+        
+        // Shows the manual add popover and the overlay
+        function showManualAddPopover(event) {
+            event.stopPropagation(); // Prevent the click from immediately closing the popover
+            const popover = document.getElementById('manual-add-popover');
+            const inputEl = document.getElementById('support-number-input');
+            const overlay = document.getElementById('overlay');
+
+            // Reset input and button state
+            inputEl.value = '';
+            updateManualAddUI();
+
+            popover.style.display = 'flex';
+            overlay.style.display = 'block';
+            
+            // Wait for the popover to become visible, then focus the input
+            setTimeout(() => {
+                if (inputEl) {
+                    inputEl.focus();
+                }
+            }, 100);
+        }
+
+        // Closes the manual add popover and the overlay
+        function closeManualAddPopover() {
+            const popover = document.getElementById('manual-add-popover');
+            const overlay = document.getElementById('overlay');
+            popover.style.display = 'none';
+            overlay.style.display = 'none';
+        }
+
+        // Handles the logic for the manual add button click
+        function addManually() {
+            // Step 1: Update notification box FIRST
+            const randomSSCC = document.getElementById('support-number-input').value; // Use the actual entered number
+            let notificationMessage;
+            let targetNote;
+
+            if (manualAddCounter % 2 !== 0) {
+                // First manual add click: Creates a new "No order" record
+                notificationMessage = "Support not linked to the store. Entry created requires treatment";
+            } else {
+                // Second manual add click: Updates the existing record
+                targetNote = deliveryNotes.find(note => note.delivery_note === "1559145574");
+                notificationMessage = `Manually entered. Delivery note: ${targetNote.delivery_note}`;
+            }
+
+            updateNotification(randomSSCC, notificationMessage);
+            closeManualAddPopover();
+
+            // Step 2: Proceed with the rest of the event logic
+            let highlightClass;
+            let newValue;
+
+            if (manualAddCounter % 2 !== 0) {
+                // First manual add click: Creates a new "No order" record
+                const now = new Date();
+                const formattedDate = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                
+                targetNote = {
+                    "id": Date.now(),
+                    "delivery_note": "No order",
+                    "date_time": formattedDate,
+                    "data_warehouse": "Dist. Center 150", // Changed from Dist. Center 99
+                    "received_count": 1,
+                    "total_count": 1,
+                    "status": "Not treated", // Corrected status for new records
+                    "not_scanned": null,
+                    "not_delivered": null,
+                    "dolly_info": null
+                };
+                deliveryNotes.unshift(targetNote);
+                initializeSupportNumbers(targetNote); // Generate and store support numbers for the new note
+                renderDeliveryList();
+                
+                highlightClass = 'highlight-new-record';
+                
+            } else {
+                // Second manual add click: Updates the existing record
+                targetNote = deliveryNotes.find(note => note.delivery_note === "1559145574");
+                if (!targetNote) {
+                    console.error("Record '1559145574' not found.");
+                    updateNotification("Error", "Record not found.");
+                    return;
+                }
+                
+                newValue = 3;
+                targetNote.received_count = newValue;
+                // NEW: Change the status to "Treated"
+                targetNote.status = "Treated";
+
+                highlightClass = 'highlight-record';
+            }
+
+            manualAddCounter++;
+
+            const targetRecordEl = document.getElementById(`note-${targetNote.id}`);
+            if (!targetRecordEl) {
+                console.log("HTML element for record not found. Skipping animation.");
+                return;
+            }
+            
+            const recordDiv = targetRecordEl.querySelector('div');
+            
+            targetRecordEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(() => {
+                if (recordDiv) {
+                    recordDiv.classList.add(highlightClass);
+                }
+                
+                // Animate count change only for existing records
+                if (targetNote.delivery_note !== "No order") {
+                    const countSpan = document.getElementById('count-' + targetNote.id);
+                    if (countSpan) {
+                        countSpan.classList.add('highlight-count-scale');
+                        setTimeout(() => {
+                            countSpan.textContent = targetNote.received_count;
+                            setTimeout(() => {
+                                countSpan.classList.remove('highlight-count-scale');
+                                renderDeliveryList();
+                                if (recordDiv) {
+                                    recordDiv.classList.remove(highlightClass);
+                                }
+                            }, 500);
+                        }, 200);
+                    }
+                } else {
+                    // For the new "No order" record, just remove the highlight and show toast
+                    setTimeout(() => {
+                        if (recordDiv) { recordDiv.classList.remove(highlightClass); }
+                    }, 1000);
+                }
+            }, 500);
+        }
+        
+        // Updates the character counter and enables/disables the 'Add' button
+        function updateManualAddUI() {
+            const inputEl = document.getElementById('support-number-input');
+            const addButton = document.getElementById('add-button');
+            const counterEl = document.getElementById('digit-counter');
+            
+            const inputValue = inputEl.value;
+            counterEl.textContent = `${inputValue.length} / 18`;
+            
+            if (inputValue.length === 18) {
+                addButton.disabled = false;
+                addButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                addButton.disabled = true;
+                addButton.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        // Function to pre-generate and sort all support numbers for each note.
+        // This ensures the titles don't change and are always sorted.
+        function initializeSupportNumbers(singleNote = null) {
+            const notesToProcess = singleNote ? [singleNote] : deliveryNotes;
+            const subtitles = ["MP / Box", "Dolly / Rolltainers", "Display"];
+
+            notesToProcess.forEach(note => {
+                let supportNumbers = [];
+                // Handle specific delivery notes with custom logic
+                if (note.delivery_note === "1559141952") {
+                    const statuses = [
+                        { status1: "Received", status2: "Scanned", subtitle: "Dolly/Rolltainers", lineColor: 'bg-green-600', status1Color: 'text-green-600' },
+                        { status1: "Received", status2: "Scanned", subtitle: "Dolly/Rolltainers", lineColor: 'bg-green-600', status1Color: 'text-green-600' },
+                        { status1: "Received", status2: "Scanned", subtitle: "Dolly/Rolltainers", lineColor: 'bg-green-600', status1Color: 'text-green-600' },
+                        { status1: "Not delivered", status2: "", subtitle: "MP / Box", lineColor: 'bg-red-600', status1Color: 'text-red-600' },
+                        { status1: "Not scanned", status2: "", subtitle: "Display", lineColor: 'bg-gray-300', status1Color: 'text-gray-500' }
+                    ];
+                    supportNumbers = statuses.map(status => ({ ...status, number: generateRandom18DigitNumber() }));
+                } else if (note.delivery_note === "1551159152") {
+                    const statuses = [
+                        { status1: "Received", status2: "Scanned", subtitle: "MP / Box", lineColor: 'bg-green-600', status1Color: 'text-green-600' },
+                        { status1: "Received", status2: "Scanned", subtitle: "MP / Box", lineColor: 'bg-green-600', status1Color: 'text-green-600' },
+                        { status1: "Received", status2: "Scanned", subtitle: "Dolly / Rolltainers", lineColor: 'bg-green-600', status1Color: 'text-green-600' },
+                        { status1: "Received", status2: "Scanned", subtitle: "Dolly / Rolltainers", lineColor: 'bg-green-600', status1Color: 'text-green-600' },
+                        { status1: "Received", status2: "Scanned", subtitle: "Display", lineColor: 'bg-green-600', status1Color: 'text-green-600' },
+                        { status1: "Received", status2: "Manual", subtitle: "Dolly / Rolltainers", lineColor: 'bg-green-600', status1Color: 'text-green-600' },
+                        { status1: "Received", status2: "Manual", subtitle: "Display", lineColor: 'bg-green-600', status1Color: 'text-green-600' },
+                        { status1: "Not delivered", status2: "", subtitle: "MP / Box", lineColor: 'bg-red-600', status1Color: 'text-red-600' },
+                        { status1: "Not delivered", status2: "", subtitle: "Dolly / Rolltainers", lineColor: 'bg-red-600', status1Color: 'text-red-600' },
+                        { status1: "Not scanned", status2: "", subtitle: "MP / Box", lineColor: 'bg-gray-300', status1Color: 'text-gray-500' },
+                        { status1: "Not scanned", status2: "", subtitle: "Display", lineColor: 'bg-gray-300', status1Color: 'text-gray-500' }
+                    ];
+                    supportNumbers = statuses.map(status => ({ ...status, number: generateRandom18DigitNumber() }));
+                } else if (note.delivery_note === "293459130") {
+                    const statuses = [
+                        { status1: "Received", status2: "Scanned", subtitle: "MP / Box", lineColor: 'bg-green-600', status1Color: 'text-green-600' },
+                        { status1: "Received", status2: "Scanned", subtitle: "Dolly / Rolltainers", lineColor: 'bg-green-600', status1Color: 'text-green-600' },
+                        { status1: "Received", status2: "Manual", subtitle: "Display", lineColor: 'bg-green-600', status1Color: 'text-green-600' },
+                        { status1: "Not delivered", status2: "", subtitle: "MP / Box", lineColor: 'bg-red-600', status1Color: 'text-red-600' },
+                        { status1: "Not delivered", status2: "", subtitle: "Dolly / Rolltainers", lineColor: 'bg-red-600', status1Color: 'text-red-600' },
+                        { status1: "Not scanned", status2: "", subtitle: "Display", lineColor: 'bg-gray-300', status1Color: 'text-gray-500' }
+                    ];
+                    supportNumbers = statuses.map(status => ({ ...status, number: generateRandom18DigitNumber() }));
+                } else if (note.delivery_note === "1559145574") {
+                    const statuses = [
+                        { status1: "Received", status2: "Scanned", subtitle: "Dolly / Rolltainers", lineColor: 'bg-green-600', status1Color: 'text-green-600' },
+                        { status1: "Received", status2: "Manual", subtitle: "Display", lineColor: 'bg-green-600', status1Color: 'text-green-600' },
+                        { status1: "Not delivered", status2: "", subtitle: "MP / Box", lineColor: 'bg-red-600', status1Color: 'text-red-600' },
+                        { status1: "Not scanned", status2: "", subtitle: "Display", lineColor: 'bg-gray-300', status1Color: 'text-gray-500' }
+                    ];
+                    supportNumbers = statuses.map(status => ({ ...status, number: generateRandom18DigitNumber() }));
+                } else if (note.delivery_note === "1901515212" || note.delivery_note === "1901514877") {
+                    for (let i = 0; i < note.total_count; i++) {
+                        const randomStatus2 = i % 2 === 0 ? "Scanned" : "Manual";
+                        supportNumbers.push({
+                            number: generateRandom18DigitNumber(),
+                            subtitle: subtitles[Math.floor(Math.random() * subtitles.length)],
+                            status1: "Received",
+                            status2: randomStatus2,
+                            lineColor: 'bg-green-600',
+                            status1Color: 'text-green-600'
+                        });
+                    }
+                } else if (note.delivery_note === "5955959259") {
+                    for (let i = 0; i < note.total_count; i++) {
+                        let status1, status2, lineColor, status1Color;
+                        if (i < 7) {
+                            status1 = "Not scanned";
+                            status2 = "";
+                            lineColor = 'bg-gray-300';
+                            status1Color = 'text-gray-500';
+                        } else {
+                            status1 = "Received";
+                            status2 = (i - 7) % 2 === 0 ? "Scanned" : "Manual";
+                            lineColor = 'bg-green-600';
+                            status1Color = 'text-green-600';
+                        }
+                        supportNumbers.push({
+                            number: generateRandom18DigitNumber(),
+                            subtitle: subtitles[Math.floor(Math.random() * subtitles.length)],
+                            status1: status1,
+                            status2: status2,
+                            lineColor: lineColor,
+                            status1Color: status1Color
+                        });
+                    }
+                } else if (note.delivery_note === "5955951147") {
+                    for (let i = 0; i < note.total_count; i++) {
+                        let status1, status2, lineColor, status1Color;
+                        if (i < 8) {
+                            status1 = "Not scanned";
+                            status2 = "";
+                            lineColor = 'bg-gray-300';
+                            status1Color = 'text-gray-500';
+                        } else {
+                            status1 = "Received";
+                            status2 = "Scanned";
+                            lineColor = 'bg-green-600';
+                            status1Color = 'text-green-600';
+                        }
+                        supportNumbers.push({
+                            number: generateRandom18DigitNumber(),
+                            subtitle: subtitles[Math.floor(Math.random() * subtitles.length)],
+                            status1: status1,
+                            status2: status2,
+                            lineColor: lineColor,
+                            status1Color: status1Color
+                        });
+                    }
+                } else if (note.delivery_note === "No order") {
+                    // Custom logic for the "No order" note as requested by the user
+                    supportNumbers.push({
+                        number: generateRandom18DigitNumber(),
+                        subtitle: subtitles[Math.floor(Math.random() * subtitles.length)],
+                        status1: "Received",
+                        status2: "No support",
+                        lineColor: 'bg-orange-600',
+                        status1Color: 'text-orange-600'
+                    });
+                } else {
+                    // Original random logic for other records
+                    for (let i = 0; i < note.total_count; i++) {
+                        const status1s = ["Received", "Not delivered", "Not scanned"];
+                        const status2s = ["Scanned", "Manual", "No Support"];
+
+                        const randomStatus1 = status1s[Math.floor(Math.random() * status1s.length)];
+                        let randomStatus2 = "";
+                        let verticalLineColor = '';
+                        let status1ColorClass = 'text-gray-500';
+
+                        if (randomStatus1 === "Received") {
+                            randomStatus2 = status2s[Math.floor(Math.random() * status2s.length)];
+                            if (randomStatus2 === "No Support") {
+                                verticalLineColor = 'bg-orange-600';
+                                status1ColorClass = 'text-orange-600';
+                            } else {
+                                verticalLineColor = 'bg-green-600';
+                                status1ColorClass = 'text-green-600';
+                            }
+                        } else if (randomStatus1 === "Not delivered") {
+                            verticalLineColor = 'bg-red-600';
+                            status1ColorClass = 'text-red-600';
+                        } else { // "Not scanned"
+                            verticalLineColor = 'bg-gray-300';
+                            status1ColorClass = 'text-gray-500';
+                        }
+
+                        supportNumbers.push({
+                            number: generateRandom18DigitNumber(),
+                            subtitle: subtitles[Math.floor(Math.random() * subtitles.length)],
+                            status1: randomStatus1,
+                            status2: randomStatus2,
+                            lineColor: verticalLineColor,
+                            status1Color: status1ColorClass
+                        });
+                    }
+                }
+
+                // Sort the generated list by the number in descending order
+                supportNumbers.sort((a, b) => b.number.localeCompare(a.number));
+
+                // Store the sorted list in the global object
+                supportNumbersByNote[note.id] = supportNumbers;
+            });
+        }
+
+        // Initializes the app when the page is fully loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeSupportNumbers(); // Pre-generate all support number lists
+            renderDeliveryList();
+            showScreen(1); // Show the main list screen
+
+            // Set the today's date subtitle
+            const today = new Date();
+            const formattedDate = formatDate(today);
+            document.getElementById('today-date').textContent = formattedDate;
+
+            // Add event listener for the input field to validate and update the UI
+            const inputEl = document.getElementById('support-number-input');
+            inputEl.addEventListener('input', () => {
+                // Keep only numeric characters
+                inputEl.value = inputEl.value.replace(/\D/g, '');
+                updateManualAddUI();
+            });
+
+            // Listener to close the popover when clicking outside of it
+            document.addEventListener('click', (event) => {
+                const popover = document.getElementById('manual-add-popover');
+                const button = document.getElementById('add-manually-button');
+                // Check if the click is outside both the popover and the button
+                if (popover.style.display !== 'none' && !popover.contains(event.target) && !button.contains(event.target)) {
+                    closeManualAddPopover();
+                }
+            });
+
+            // Keyboard listener for back navigation
+            document.addEventListener('keydown', (event) => {
+                if (event.key === "ArrowLeft" && currentScreen === 2) {
+                    goBack();
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>
